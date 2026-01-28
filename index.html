@@ -1,0 +1,52 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BOIDS Sandbox</title>
+  <style>
+    :root {
+      --leaf-dark: #0f2b1f;
+      --leaf-mid: #1a3f2c;
+      --leaf-light: #26533a;
+      --sun-wash: rgba(180, 220, 170, 0.28);
+      --mist: rgba(230, 247, 238, 0.12);
+      --accent: #f3d36c;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(180% 140% at 50% -25%, var(--sun-wash), transparent 58%),
+        linear-gradient(180deg, var(--leaf-dark), var(--leaf-mid) 45%, var(--leaf-light));
+      color: #e6edf7;
+      font-family: "Alegreya Sans", "Gill Sans", "Trebuchet MS", sans-serif;
+    }
+    .frame {
+      position: fixed;
+      inset: 0;
+      display: block;
+    }
+    #hud {
+      position: fixed;
+      left: 18px;
+      top: 18px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      opacity: 0.7;
+      color: var(--mist);
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">BOIDS canopy</div>
+  <div class="frame"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
+  <script src="first.js"></script>
+</body>
+</html>
