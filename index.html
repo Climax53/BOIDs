@@ -38,6 +38,117 @@
       opacity: 0.7;
       color: var(--mist);
     }
+    #menu-toggle {
+      position: fixed;
+      left: 18px;
+      bottom: 18px;
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      border: 1px solid rgba(243, 211, 108, 0.35);
+      background: rgba(15, 43, 31, 0.7);
+      display: grid;
+      place-items: center;
+      gap: 4px;
+      cursor: pointer;
+      padding: 10px;
+      z-index: 10;
+    }
+    #menu-toggle span {
+      display: block;
+      width: 20px;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 999px;
+    }
+    #menu-toggle:focus-visible {
+      outline: 2px solid rgba(243, 211, 108, 0.8);
+      outline-offset: 2px;
+    }
+    dialog#settings-panel {
+      position: fixed;
+      left: 24px;
+      bottom: 80px;
+      margin: 0;
+      width: min(420px, calc(100% - 40px));
+      border: 1px solid rgba(243, 211, 108, 0.35);
+      border-radius: 18px;
+      padding: 22px 22px 18px;
+      color: #eff7f0;
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(243, 211, 108, 0.18), transparent 45%),
+        rgba(12, 28, 22, 0.92);
+      box-shadow: 0 25px 80px rgba(5, 12, 9, 0.6);
+      z-index: 12;
+    }
+    .settings-title {
+      margin: 0 0 6px;
+      font-size: 18px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+    .settings-subtitle {
+      margin: 0 0 18px;
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      opacity: 0.7;
+    }
+    .settings-grid {
+      display: grid;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .settings-grid label {
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(230, 247, 238, 0.75);
+      display: grid;
+      gap: 6px;
+    }
+    .settings-grid input {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(243, 211, 108, 0.3);
+      background: rgba(12, 28, 22, 0.7);
+      color: #eff7f0;
+      font-size: 14px;
+    }
+    .settings-grid select {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(243, 211, 108, 0.3);
+      background: rgba(12, 28, 22, 0.7);
+      color: #eff7f0;
+      font-size: 14px;
+    }
+    .settings-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .settings-actions button {
+      padding: 10px 16px;
+      border-radius: 12px;
+      border: 1px solid transparent;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+    #settings-close {
+      background: transparent;
+      color: rgba(230, 247, 238, 0.7);
+      border-color: rgba(230, 247, 238, 0.2);
+    }
+    #settings-save {
+      background: rgba(243, 211, 108, 0.9);
+      color: #1a2f23;
+      border-color: rgba(243, 211, 108, 0.9);
+      font-weight: 600;
+    }
     canvas {
       display: block;
     }
@@ -45,6 +156,47 @@
 </head>
 <body>
   <div id="hud">BOIDS canopy</div>
+  <button id="menu-toggle" type="button" aria-expanded="false" aria-controls="settings-panel" aria-label="Open settings">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+  <dialog id="settings-panel" aria-label="Boid settings">
+    <h2 class="settings-title">Boids Control</h2>
+    <p class="settings-subtitle">Adjust population</p>
+    <div class="settings-grid">
+      <label>
+        Regular Boids
+        <input id="regular-count" type="number" min="0" step="1" inputmode="numeric" />
+      </label>
+      <label>
+        Predatory Boids
+        <input id="predator-count" type="number" min="0" step="1" inputmode="numeric" />
+      </label>
+      <label>
+        Obstacles
+        <input id="obstacle-count" type="number" min="0" max="10" step="1" inputmode="numeric" />
+      </label>
+      <label>
+        Mouse BOID
+        <input id="mouse-boid-toggle" type="checkbox" />
+      </label>
+      <label>
+        Background
+        <select id="background-theme">
+          <option value="canopy">Canopy (Current)</option>
+          <option value="charcoal">Charcoal</option>
+          <option value="forest">Midnight Blue</option>
+          <option value="ember">Ember</option>
+          <option value="mist">Pearl</option>
+        </select>
+      </label>
+    </div>
+    <div class="settings-actions">
+      <button id="settings-close" type="button">Close</button>
+      <button id="settings-save" type="button">Save</button>
+    </div>
+  </dialog>
   <div class="frame"></div>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.0/p5.min.js"></script>
   <script src="first.js"></script>

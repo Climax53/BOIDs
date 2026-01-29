@@ -3,11 +3,11 @@
 };
 
 const BOID_SETTINGS = {
-  count: 260,
-  infants: 2,
-  predators: 3,
+  count: 340,
+  predators: 1,
   maxSpeed: 2.6,
   minSpeed: 1.2,
+  predatorMinSpeed: 1.8,
   maxForce: 0.045,
   viewDistance: 60,
   perception: 70,
@@ -19,12 +19,11 @@ const BOID_SETTINGS = {
     regularOtherColor: 0.25,
     separation: 1.3,
     bounds: 0,
-    infantAttraction: 1.1,
     predatorAvoid: 2.2,
     obstacleAvoid: 1.25,
     centerPull: 0.18,
-    infantAvoidCrowd: 0.9
   },
+  regularSameColorBias: 1.6,
   confusion: {
     neighborThreshold: 10,
     buildRate: 0.012,
@@ -37,21 +36,90 @@ const BOID_SETTINGS = {
     radiusBoost: 60,
     sideAngle: 0.6
   },
-  infantCrowd: {
-    threshold: 8
+  predatorPersonalSpace: {
+    range: 40,
+    weight: 1.4
+  },
+  predatorCohesion: {
+    weight: 0.3
   }
 };
+const OBSTACLE_SETTINGS = {
+  count: 8,
+  maxCount: 10,
+  sizeRange: [0.06, 0.095],
+  radiusJitter: [0.7, 1.05],
+  spinRange: [-0.006, 0.006]
+};
+const MOUSE_JIGGLER = {
+  enabled: false,
+  idleMs: 3000,
+  lastMoveAt: 0,
+  active: false,
+  boid: null,
+  lastMousePos: null,
+  lastSendAt: 0,
+  sendIntervalMs: 70,
+  programmaticMoveAt: 0,
+  disabledUntil: 0
+};
+const BACKGROUND_THEMES = {
+  canopy: {
+    label: 'Canopy',
+    base: [12, 28, 22],
+    gradientFrom: [10, 30, 22],
+    gradientTo: [34, 76, 50],
+    gradientAlpha: 135
+  },
+  charcoal: {
+    label: 'Charcoal',
+    base: [12, 12, 12],
+    gradientFrom: [8, 8, 8],
+    gradientTo: [38, 38, 38],
+    gradientAlpha: 120
+  },
+  forest: {
+    label: 'Midnight Blue',
+    base: [8, 16, 30],
+    gradientFrom: [6, 14, 26],
+    gradientTo: [22, 48, 78],
+    gradientAlpha: 130
+  },
+  ember: {
+    label: 'Ember',
+    base: [36, 18, 8],
+    gradientFrom: [30, 14, 6],
+    gradientTo: [88, 42, 16],
+    gradientAlpha: 125
+  },
+  mist: {
+    label: 'Mist',
+    base: [240, 240, 242],
+    gradientFrom: [230, 232, 235],
+    gradientTo: [252, 252, 255],
+    gradientAlpha: 180
+  }
+};
+let backgroundThemeKey = 'canopy';
 
 const boids = [];
 const obstacles = [];
+let canvasElement = null;
+const GRID_SETTINGS = {
+  targetCells: 20
+};
+const SPATIAL_GRID = {
+  cellSize: 120,
+  cols: 0,
+  rows: 0,
+  cells: []
+};
 const BOID_TYPES = {
   regular: 'regular',
-  infant: 'infant',
   predator: 'predator'
 };
 
 const BOID_COLORS = {
-  infant: [246, 196, 212, 220],
   predator: [236, 72, 62, 230]
 };
 
@@ -62,8 +130,91 @@ const REGULAR_COLORS = [
   [208, 178, 226, 220],
   [243, 174, 132, 220]
 ];
+
+function setupSettingsUI() {
+  const menuToggle = document.getElementById('menu-toggle');
+  const settingsPanel = document.getElementById('settings-panel');
+  const regularInput = document.getElementById('regular-count');
+  const predatorInput = document.getElementById('predator-count');
+  const obstacleInput = document.getElementById('obstacle-count');
+  const mouseToggle = document.getElementById('mouse-boid-toggle');
+  const backgroundSelect = document.getElementById('background-theme');
+  const closeButton = document.getElementById('settings-close');
+  const saveButton = document.getElementById('settings-save');
+
+  if (!menuToggle || !settingsPanel || !regularInput || !predatorInput || !obstacleInput || !mouseToggle || !backgroundSelect || !closeButton || !saveButton) {
+    return;
+  }
+
+  const syncInputs = () => {
+    regularInput.value = BOID_SETTINGS.count;
+    predatorInput.value = BOID_SETTINGS.predators;
+    obstacleInput.value = OBSTACLE_SETTINGS.count;
+    mouseToggle.checked = MOUSE_JIGGLER.enabled;
+    backgroundSelect.value = backgroundThemeKey;
+  };
+
+  const openPanel = () => {
+    syncInputs();
+    if (!settingsPanel.open) {
+      settingsPanel.show();
+    }
+    menuToggle.setAttribute('aria-expanded', 'true');
+  };
+
+  const closePanel = () => {
+    if (settingsPanel.open) {
+      settingsPanel.close();
+    }
+    menuToggle.setAttribute('aria-expanded', 'false');
+    menuToggle.focus();
+  };
+
+  const applySettings = () => {
+    const regularValue = Number.parseInt(regularInput.value, 10);
+    const predatorValue = Number.parseInt(predatorInput.value, 10);
+    const obstacleValue = Number.parseInt(obstacleInput.value, 10);
+    BOID_SETTINGS.count = Number.isFinite(regularValue) ? Math.max(0, regularValue) : BOID_SETTINGS.count;
+    BOID_SETTINGS.predators = Number.isFinite(predatorValue) ? Math.max(0, predatorValue) : BOID_SETTINGS.predators;
+    OBSTACLE_SETTINGS.count = Number.isFinite(obstacleValue)
+      ? Math.min(OBSTACLE_SETTINGS.maxCount, Math.max(0, obstacleValue))
+      : OBSTACLE_SETTINGS.count;
+    MOUSE_JIGGLER.enabled = mouseToggle.checked;
+    MOUSE_JIGGLER.lastMoveAt = millis();
+    backgroundThemeKey = backgroundSelect.value in BACKGROUND_THEMES ? backgroundSelect.value : backgroundThemeKey;
+    initBoids();
+    initObstacles();
+    closePanel();
+  };
+
+  menuToggle.addEventListener('click', () => {
+    if (settingsPanel.open) {
+      closePanel();
+    } else {
+      openPanel();
+    }
+  });
+
+  closeButton.addEventListener('click', closePanel);
+  saveButton.addEventListener('click', applySettings);
+  mouseToggle.addEventListener('change', () => {
+    MOUSE_JIGGLER.enabled = mouseToggle.checked;
+    MOUSE_JIGGLER.lastMoveAt = millis();
+    if (!MOUSE_JIGGLER.enabled && MOUSE_JIGGLER.active) {
+      stopMouseJiggle();
+    }
+  });
+  backgroundSelect.addEventListener('change', () => {
+    backgroundThemeKey = backgroundSelect.value in BACKGROUND_THEMES ? backgroundSelect.value : backgroundThemeKey;
+  });
+
+  settingsPanel.addEventListener('close', () => {
+    menuToggle.setAttribute('aria-expanded', 'false');
+  });
+}
 function setup() {
   const canvas = createCanvas(windowWidth, windowHeight);
+  canvasElement = canvas.elt;
   canvas.parent(document.querySelector('.frame'));
   pixelDensity(1);
   noStroke();
@@ -74,24 +225,30 @@ function setup() {
 function draw() {
   drawArena();
   updateBoids();
+  updateMouseJiggler();
 }
 
 function drawArena() {
-  background(12, 28, 22);
+  const theme = BACKGROUND_THEMES[backgroundThemeKey] || BACKGROUND_THEMES.canopy;
+  background(theme.base[0], theme.base[1], theme.base[2]);
 
-  drawGradient();
+  drawGradient(theme);
   updateObstacles();
   drawObstacles();
   drawCompass();
 }
 
-function drawGradient() {
+function drawGradient(theme) {
   push();
   noFill();
   for (let y = 0; y <= height; y += 4) {
     const t = y / height;
-    const c = lerpColor(color(10, 30, 22, 255), color(34, 76, 50, 255), t);
-    stroke(red(c), green(c), blue(c), 135);
+    const c = lerpColor(
+      color(theme.gradientFrom[0], theme.gradientFrom[1], theme.gradientFrom[2], 255),
+      color(theme.gradientTo[0], theme.gradientTo[1], theme.gradientTo[2], 255),
+      t
+    );
+    stroke(red(c), green(c), blue(c), theme.gradientAlpha);
     line(0, y, width, y);
   }
   pop();
@@ -99,22 +256,22 @@ function drawGradient() {
 
 function initObstacles() {
   obstacles.length = 0;
-  const count = 8;
+  const count = Math.min(OBSTACLE_SETTINGS.maxCount, Math.max(0, OBSTACLE_SETTINGS.count));
   const base = min(width, height);
   for (let i = 0; i < count; i += 1) {
-    const size = random(base * 0.05, base * 0.09);
+    const size = random(base * OBSTACLE_SETTINGS.sizeRange[0], base * OBSTACLE_SETTINGS.sizeRange[1]);
     const points = [];
     const vertices = floor(random(5, 8));
     for (let v = 0; v < vertices; v += 1) {
       const angle = (TWO_PI / vertices) * v + random(-0.3, 0.3);
-      const radius = size * random(0.6, 1.1);
+      const radius = size * random(OBSTACLE_SETTINGS.radiusJitter[0], OBSTACLE_SETTINGS.radiusJitter[1]);
       points.push({ angle, radius });
     }
     obstacles.push({
       position: createVector(random(width), random(height)),
       velocity: p5.Vector.random2D().mult(random(0.2, 0.6)),
       angle: random(TWO_PI),
-      spin: random(-0.006, 0.006),
+      spin: random(OBSTACLE_SETTINGS.spinRange[0], OBSTACLE_SETTINGS.spinRange[1]),
       points,
       radius: size
     });
@@ -173,7 +330,6 @@ function drawCompass() {
 function initBoids() {
   boids.length = 0;
   spawnBoids(BOID_SETTINGS.count, BOID_TYPES.regular);
-  spawnBoids(BOID_SETTINGS.infants, BOID_TYPES.infant);
   spawnBoids(BOID_SETTINGS.predators, BOID_TYPES.predator);
 }
 
@@ -186,9 +342,9 @@ function spawnBoids(count, type) {
 }
 
 function updateBoids() {
-  resolveCollisions();
+  buildSpatialGrid();
   for (const boid of boids) {
-    boid.flock(boids);
+    boid.flock();
     boid.update();
     enforceObstacleBarrier(boid);
     wrapAround(boid);
@@ -196,28 +352,24 @@ function updateBoids() {
   }
 }
 
-function resolveCollisions() {
-  const minDist = 16;
-  for (let i = 0; i < boids.length; i += 1) {
-    for (let j = i + 1; j < boids.length; j += 1) {
-      const a = boids[i];
-      const b = boids[j];
-      const d = dist(a.position.x, a.position.y, b.position.x, b.position.y);
-      if (d > 0 && d < minDist) {
-        const overlap = (minDist - d) * 0.5;
-        const normal = p5.Vector.sub(a.position, b.position).setMag(1);
-        a.position.add(p5.Vector.mult(normal, overlap));
-        b.position.add(p5.Vector.mult(normal, -overlap));
-
-        const relative = p5.Vector.sub(a.velocity, b.velocity);
-        const speed = relative.dot(normal);
-        if (speed < 0) {
-          const impulse = p5.Vector.mult(normal, speed);
-          a.velocity.sub(impulse);
-          b.velocity.add(impulse);
-        }
-      }
+function buildSpatialGrid() {
+  const targetCells = GRID_SETTINGS.targetCells;
+  const area = width * height;
+  SPATIAL_GRID.cellSize = Math.sqrt(area / targetCells);
+  SPATIAL_GRID.cols = Math.max(1, Math.ceil(width / SPATIAL_GRID.cellSize));
+  SPATIAL_GRID.rows = Math.max(1, Math.ceil(height / SPATIAL_GRID.cellSize));
+  const cellCount = SPATIAL_GRID.cols * SPATIAL_GRID.rows;
+  if (SPATIAL_GRID.cells.length !== cellCount) {
+    SPATIAL_GRID.cells = Array.from({ length: cellCount }, () => []);
+  } else {
+    for (const cell of SPATIAL_GRID.cells) {
+      cell.length = 0;
     }
+  }
+  for (const boid of boids) {
+    const cx = Math.min(SPATIAL_GRID.cols - 1, Math.max(0, Math.floor(boid.position.x / SPATIAL_GRID.cellSize)));
+    const cy = Math.min(SPATIAL_GRID.rows - 1, Math.max(0, Math.floor(boid.position.y / SPATIAL_GRID.cellSize)));
+    SPATIAL_GRID.cells[cy * SPATIAL_GRID.cols + cx].push(boid);
   }
 }
 
@@ -256,8 +408,8 @@ class Boid {
     this.colorIndex = type === BOID_TYPES.regular ? floor(random(REGULAR_COLORS.length)) : null;
   }
 
-  flock(others) {
-    const neighbors = this.getNeighbors(others);
+  flock() {
+    const { neighbors, predatorsNearby, collisionPush } = this.getNeighbors();
     this.updateConfusion(neighbors.length);
     const alignment = this.align(neighbors).mult(BOID_SETTINGS.weights.alignment);
     const cohesion = this.type === BOID_TYPES.regular
@@ -269,25 +421,25 @@ class Boid {
     const centerPull = this.pullToCenter().mult(BOID_SETTINGS.weights.centerPull);
 
     this.applyForce(alignment);
-    this.applyForce(cohesion);
+    if (this.type === BOID_TYPES.predator) {
+      this.applyForce(cohesion.mult(BOID_SETTINGS.predatorCohesion.weight));
+    } else {
+      this.applyForce(cohesion);
+    }
     this.applyForce(separation);
+    this.applyForce(collisionPush);
     this.applyForce(bounds);
     this.applyForce(avoidObstacles);
     this.applyForce(centerPull);
 
     if (this.type !== BOID_TYPES.predator) {
-      const avoid = this.avoidPredators(others).mult(BOID_SETTINGS.weights.predatorAvoid);
+      const avoid = this.avoidPredators(predatorsNearby).mult(BOID_SETTINGS.weights.predatorAvoid);
       this.applyForce(avoid);
     }
 
-    if (this.type === BOID_TYPES.regular) {
-      const infantPull = this.attractInfants(others).mult(BOID_SETTINGS.weights.infantAttraction);
-      this.applyForce(infantPull);
-    }
-
-    if (this.type === BOID_TYPES.infant) {
-      const crowdAvoid = this.avoidCrowds(others).mult(BOID_SETTINGS.weights.infantAvoidCrowd);
-      this.applyForce(crowdAvoid);
+    if (this.type === BOID_TYPES.predator) {
+      const space = this.predatorPersonalSpace(neighbors).mult(BOID_SETTINGS.predatorPersonalSpace.weight);
+      this.applyForce(space);
     }
   }
 
@@ -298,11 +450,14 @@ class Boid {
   update() {
     this.velocity.add(this.acceleration);
     this.velocity.limit(BOID_SETTINGS.maxSpeed);
-    if (this.velocity.mag() < BOID_SETTINGS.minSpeed) {
+    const minSpeed = this.type === BOID_TYPES.predator
+      ? BOID_SETTINGS.predatorMinSpeed
+      : BOID_SETTINGS.minSpeed;
+    if (this.velocity.mag() < minSpeed) {
       if (this.velocity.magSq() === 0) {
-        this.velocity = p5.Vector.random2D().mult(BOID_SETTINGS.minSpeed);
+        this.velocity = p5.Vector.random2D().mult(minSpeed);
       } else {
-        this.velocity.setMag(BOID_SETTINGS.minSpeed);
+        this.velocity.setMag(minSpeed);
       }
     }
     this.position.add(this.velocity);
@@ -310,6 +465,9 @@ class Boid {
   }
 
   render() {
+    if (this.isMouse) {
+      return;
+    }
     const heading = this.velocity.heading();
     push();
     translate(this.position.x, this.position.y);
@@ -325,21 +483,51 @@ class Boid {
     pop();
   }
 
-  getNeighbors(others) {
+  getNeighbors() {
     const neighbors = [];
-    for (const other of others) {
-      if (other === this) continue;
-      const d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
-      if (d < BOID_SETTINGS.perception) {
-        if (this.type === BOID_TYPES.predator) {
-          if (other.type !== BOID_TYPES.predator) continue;
-          neighbors.push(other);
-        } else if (other.type !== BOID_TYPES.predator) {
-          neighbors.push(other);
+    const predatorsNearby = [];
+    const collisionPush = createVector(0, 0);
+    const perceptionSq = BOID_SETTINGS.perception * BOID_SETTINGS.perception;
+    const minDist = 16;
+    const minDistSq = minDist * minDist;
+    const cx = Math.min(SPATIAL_GRID.cols - 1, Math.max(0, Math.floor(this.position.x / SPATIAL_GRID.cellSize)));
+    const cy = Math.min(SPATIAL_GRID.rows - 1, Math.max(0, Math.floor(this.position.y / SPATIAL_GRID.cellSize)));
+
+    for (let y = cy - 1; y <= cy + 1; y += 1) {
+      if (y < 0 || y >= SPATIAL_GRID.rows) continue;
+      for (let x = cx - 1; x <= cx + 1; x += 1) {
+        if (x < 0 || x >= SPATIAL_GRID.cols) continue;
+        const cell = SPATIAL_GRID.cells[y * SPATIAL_GRID.cols + x];
+        for (const other of cell) {
+          if (other === this) continue;
+          const dx = this.position.x - other.position.x;
+          const dy = this.position.y - other.position.y;
+          const d2 = dx * dx + dy * dy;
+
+          if (d2 > 0 && d2 < minDistSq) {
+            const d = Math.sqrt(d2);
+            const t = 1 - d / minDist;
+            const strength = t * t * BOID_SETTINGS.maxForce * 2.0;
+            const scale = strength / d;
+            collisionPush.x += dx * scale;
+            collisionPush.y += dy * scale;
+          }
+
+          if (d2 < perceptionSq) {
+            if (other.type === BOID_TYPES.predator) {
+              predatorsNearby.push(other);
+            }
+            if (this.type === BOID_TYPES.predator) {
+              if (other.type !== BOID_TYPES.predator) continue;
+              neighbors.push(other);
+            } else if (other.type !== BOID_TYPES.predator) {
+              neighbors.push(other);
+            }
+          }
         }
       }
     }
-    return neighbors;
+    return { neighbors, predatorsNearby, collisionPush };
   }
 
   updateConfusion(neighborCount) {
@@ -393,6 +581,22 @@ class Boid {
     return steering;
   }
 
+  cohereFromWeighted(others, weight) {
+    const steering = createVector(0, 0);
+    let totalWeight = 0;
+    for (const other of others) {
+      steering.add(p5.Vector.mult(other.position, weight));
+      totalWeight += weight;
+    }
+    if (totalWeight === 0) return steering;
+    steering.div(totalWeight);
+    steering.sub(this.position);
+    steering.setMag(BOID_SETTINGS.maxSpeed);
+    steering.sub(this.velocity);
+    steering.limit(BOID_SETTINGS.maxForce);
+    return steering;
+  }
+
   cohereRegular(others) {
     const sameColor = [];
     const otherColor = [];
@@ -404,7 +608,8 @@ class Boid {
         otherColor.push(other);
       }
     }
-    const sameSteer = this.cohereFrom(sameColor).mult(BOID_SETTINGS.weights.regularSameColor);
+    const sameSteer = this.cohereFromWeighted(sameColor, BOID_SETTINGS.regularSameColorBias)
+      .mult(BOID_SETTINGS.weights.regularSameColor);
     const otherSteer = this.cohereFrom(otherColor).mult(BOID_SETTINGS.weights.regularOtherColor);
     const combined = p5.Vector.add(sameSteer, otherSteer);
     combined.mult(this.getCohesionWeight());
@@ -431,31 +636,10 @@ class Boid {
     return steering;
   }
 
-  attractInfants(others) {
+  avoidPredators(predators) {
     const steering = createVector(0, 0);
     let count = 0;
-    for (const other of others) {
-      if (other.type !== BOID_TYPES.infant) continue;
-      const d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
-      if (d < BOID_SETTINGS.perception) {
-        steering.add(other.position);
-        count += 1;
-      }
-    }
-    if (count === 0) return steering;
-    steering.div(count);
-    steering.sub(this.position);
-    steering.setMag(BOID_SETTINGS.maxSpeed);
-    steering.sub(this.velocity);
-    steering.limit(BOID_SETTINGS.maxForce);
-    return steering;
-  }
-
-  avoidPredators(others) {
-    const steering = createVector(0, 0);
-    let count = 0;
-    for (const other of others) {
-      if (other.type !== BOID_TYPES.predator) continue;
+    for (const other of predators) {
       const d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
       if (d > 0 && d < BOID_SETTINGS.perception) {
         const diff = p5.Vector.sub(this.position, other.position);
@@ -472,25 +656,23 @@ class Boid {
     return steering;
   }
 
-  avoidCrowds(others) {
+  predatorPersonalSpace(predators) {
     const steering = createVector(0, 0);
     let count = 0;
-    let regularCount = 0;
-    for (const other of others) {
-      if (other.type !== BOID_TYPES.regular) continue;
+    for (const other of predators) {
       const d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
-      if (d < BOID_SETTINGS.perception) {
-        steering.add(other.position);
+      if (d > 0 && d < BOID_SETTINGS.predatorPersonalSpace.range) {
+        const diff = p5.Vector.sub(this.position, other.position);
+        diff.div(d * d);
+        steering.add(diff);
         count += 1;
-        regularCount += 1;
       }
     }
-    if (regularCount < BOID_SETTINGS.infantCrowd.threshold || count === 0) return steering;
+    if (count === 0) return steering;
     steering.div(count);
-    steering.set(this.position.x - steering.x, this.position.y - steering.y);
     steering.setMag(BOID_SETTINGS.maxSpeed);
     steering.sub(this.velocity);
-    steering.limit(BOID_SETTINGS.maxForce);
+    steering.limit(BOID_SETTINGS.maxForce * 0.7);
     return steering;
   }
 
@@ -585,3 +767,130 @@ function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
   initObstacles();
 }
+
+setupSettingsUI();
+
+function updateMouseJiggler() {
+  if (!MOUSE_JIGGLER.enabled) {
+    if (MOUSE_JIGGLER.active) {
+      stopMouseJiggle();
+    }
+    return;
+  }
+  if (!MOUSE_JIGGLER.lastMoveAt) {
+    MOUSE_JIGGLER.lastMoveAt = millis();
+  }
+  if (millis() < MOUSE_JIGGLER.disabledUntil) {
+    if (MOUSE_JIGGLER.active) {
+      stopMouseJiggle();
+    }
+    return;
+  }
+  const idleFor = millis() - MOUSE_JIGGLER.lastMoveAt;
+  if (idleFor >= MOUSE_JIGGLER.idleMs) {
+    if (!MOUSE_JIGGLER.active) {
+      startMouseJiggle();
+    }
+  } else if (MOUSE_JIGGLER.active) {
+    stopMouseJiggle();
+  }
+  if (MOUSE_JIGGLER.active && MOUSE_JIGGLER.boid) {
+    sendMouseBoidPosition();
+  }
+}
+
+function startMouseJiggle() {
+  MOUSE_JIGGLER.active = true;
+  attachMouseBoid();
+  if (window.mouseJiggler && typeof window.mouseJiggler.start === 'function') {
+    window.mouseJiggler.start();
+  }
+}
+
+function stopMouseJiggle() {
+  MOUSE_JIGGLER.active = false;
+  detachMouseBoid();
+  if (window.mouseJiggler && typeof window.mouseJiggler.stop === 'function') {
+    window.mouseJiggler.stop();
+  }
+}
+
+function attachMouseBoid() {
+  if (MOUSE_JIGGLER.boid) {
+    return;
+  }
+  const pos = MOUSE_JIGGLER.lastMousePos || createVector(width * 0.5, height * 0.5);
+  const boid = new Boid(pos.x, pos.y, BOID_TYPES.regular);
+  boid.isMouse = true;
+  boid.velocity = p5.Vector.random2D().mult(BOID_SETTINGS.maxSpeed);
+  MOUSE_JIGGLER.boid = boid;
+  boids.push(boid);
+}
+
+function detachMouseBoid() {
+  if (!MOUSE_JIGGLER.boid) {
+    return;
+  }
+  const idx = boids.indexOf(MOUSE_JIGGLER.boid);
+  if (idx >= 0) {
+    boids.splice(idx, 1);
+  }
+  MOUSE_JIGGLER.boid = null;
+}
+
+function sendMouseBoidPosition() {
+  const now = millis();
+  if (now - MOUSE_JIGGLER.lastSendAt < MOUSE_JIGGLER.sendIntervalMs) {
+    return;
+  }
+  MOUSE_JIGGLER.lastSendAt = now;
+  if (!canvasElement) {
+    return;
+  }
+  const rect = canvasElement.getBoundingClientRect();
+  const screenX = window.screenX ?? window.screenLeft ?? 0;
+  const screenY = window.screenY ?? window.screenTop ?? 0;
+  const scale = window.devicePixelRatio || 1;
+  const x = Math.round((screenX + rect.left + MOUSE_JIGGLER.boid.position.x) * scale);
+  const y = Math.round((screenY + rect.top + MOUSE_JIGGLER.boid.position.y) * scale);
+  MOUSE_JIGGLER.programmaticMoveAt = now;
+  if (window.mouseJiggler && typeof window.mouseJiggler.move === 'function') {
+    window.mouseJiggler.move(x, y);
+  }
+}
+
+function getCanvasPositionFromEvent(event) {
+  if (!canvasElement) {
+    return createVector(mouseX, mouseY);
+  }
+  const rect = canvasElement.getBoundingClientRect();
+  const x = constrain(event.clientX - rect.left, 0, width);
+  const y = constrain(event.clientY - rect.top, 0, height);
+  return createVector(x, y);
+}
+
+function relinquishMouseControl(event) {
+  const now = millis();
+  MOUSE_JIGGLER.lastMoveAt = now;
+  MOUSE_JIGGLER.lastMousePos = event ? getCanvasPositionFromEvent(event) : MOUSE_JIGGLER.lastMousePos;
+  if (MOUSE_JIGGLER.active) {
+    stopMouseJiggle();
+  }
+  MOUSE_JIGGLER.disabledUntil = now + 1200;
+}
+
+window.addEventListener('mousemove', (event) => {
+  const now = millis();
+  if (MOUSE_JIGGLER.active && now - MOUSE_JIGGLER.programmaticMoveAt < 150) {
+    return;
+  }
+  relinquishMouseControl(event);
+});
+
+window.addEventListener('mousedown', (event) => {
+  relinquishMouseControl(event);
+});
+
+window.addEventListener('keydown', () => {
+  relinquishMouseControl();
+});
