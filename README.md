@@ -16,7 +16,7 @@ A desktop version of the BOIDS simulation with adjustable flock, predators, obst
 
 ## Setup
 ```powershell
-cd "C:\Users\gray_\Downloads\BOIDs-main"
+cd "C:\Users\<your-username>\Downloads\BOIDs-main"
 npm install
 ```
 
@@ -27,7 +27,7 @@ npm install robotjs
 
 Rebuild native modules for Electron:
 ```powershell
-$env:npm_config_python="C:\Users\gray_\AppData\Local\Programs\Python\Python311\python.exe"
+$env:npm_config_python="C:\Users\<your-username>\AppData\Local\Programs\Python\Python311\python.exe"
 npx electron-rebuild -f -w robotjs
 ```
 
@@ -48,4 +48,3 @@ npm start
 - If `robotjs` fails to rebuild, confirm:
   - Python 3.11 path is set in `npm_config_python`
   - Visual Studio Build Tools include the VC++ toolset + Windows SDK
-
