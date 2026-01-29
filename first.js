@@ -5,6 +5,8 @@
 const BOID_SETTINGS = {
   count: 340,
   predators: 1,
+  maxCount: 1500,
+  maxPredators: 30,
   maxSpeed: 2.6,
   minSpeed: 1.2,
   predatorMinSpeed: 1.8,
@@ -174,8 +176,12 @@ function setupSettingsUI() {
     const regularValue = Number.parseInt(regularInput.value, 10);
     const predatorValue = Number.parseInt(predatorInput.value, 10);
     const obstacleValue = Number.parseInt(obstacleInput.value, 10);
-    BOID_SETTINGS.count = Number.isFinite(regularValue) ? Math.max(0, regularValue) : BOID_SETTINGS.count;
-    BOID_SETTINGS.predators = Number.isFinite(predatorValue) ? Math.max(0, predatorValue) : BOID_SETTINGS.predators;
+    BOID_SETTINGS.count = Number.isFinite(regularValue)
+      ? Math.min(BOID_SETTINGS.maxCount, Math.max(0, regularValue))
+      : BOID_SETTINGS.count;
+    BOID_SETTINGS.predators = Number.isFinite(predatorValue)
+      ? Math.min(BOID_SETTINGS.maxPredators, Math.max(0, predatorValue))
+      : BOID_SETTINGS.predators;
     OBSTACLE_SETTINGS.count = Number.isFinite(obstacleValue)
       ? Math.min(OBSTACLE_SETTINGS.maxCount, Math.max(0, obstacleValue))
       : OBSTACLE_SETTINGS.count;
