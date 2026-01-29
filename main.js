@@ -17,6 +17,7 @@ const createWindow = () => {
     width: 1200,
     height: 800,
     backgroundColor: '#0f2b1f',
+    icon: path.join(__dirname, 'logo.ico'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

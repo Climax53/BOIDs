@@ -65,6 +65,9 @@ const MOUSE_JIGGLER = {
   programmaticMoveAt: 0,
   disabledUntil: 0
 };
+const CHAOS_MODE = {
+  enabled: false
+};
 const BACKGROUND_THEMES = {
   canopy: {
     label: 'Canopy',
@@ -103,6 +106,7 @@ const BACKGROUND_THEMES = {
   }
 };
 let backgroundThemeKey = 'canopy';
+let customBackground = null;
 
 const boids = [];
 const obstacles = [];
@@ -140,11 +144,13 @@ function setupSettingsUI() {
   const predatorInput = document.getElementById('predator-count');
   const obstacleInput = document.getElementById('obstacle-count');
   const mouseToggle = document.getElementById('mouse-boid-toggle');
+  const chaosToggle = document.getElementById('chaos-toggle');
   const backgroundSelect = document.getElementById('background-theme');
+  const backgroundFile = document.getElementById('background-file');
   const closeButton = document.getElementById('settings-close');
   const saveButton = document.getElementById('settings-save');
 
-  if (!menuToggle || !settingsPanel || !regularInput || !predatorInput || !obstacleInput || !mouseToggle || !backgroundSelect || !closeButton || !saveButton) {
+  if (!menuToggle || !settingsPanel || !regularInput || !predatorInput || !obstacleInput || !mouseToggle || !chaosToggle || !backgroundSelect || !backgroundFile || !closeButton || !saveButton) {
     return;
   }
 
@@ -153,6 +159,7 @@ function setupSettingsUI() {
     predatorInput.value = BOID_SETTINGS.predators;
     obstacleInput.value = OBSTACLE_SETTINGS.count;
     mouseToggle.checked = MOUSE_JIGGLER.enabled;
+    chaosToggle.checked = CHAOS_MODE.enabled;
     backgroundSelect.value = backgroundThemeKey;
   };
 
@@ -186,6 +193,7 @@ function setupSettingsUI() {
       ? Math.min(OBSTACLE_SETTINGS.maxCount, Math.max(0, obstacleValue))
       : OBSTACLE_SETTINGS.count;
     MOUSE_JIGGLER.enabled = mouseToggle.checked;
+    CHAOS_MODE.enabled = chaosToggle.checked;
     MOUSE_JIGGLER.lastMoveAt = millis();
     backgroundThemeKey = backgroundSelect.value in BACKGROUND_THEMES ? backgroundSelect.value : backgroundThemeKey;
     initBoids();
@@ -210,8 +218,27 @@ function setupSettingsUI() {
       stopMouseJiggle();
     }
   });
+  chaosToggle.addEventListener('change', () => {
+    CHAOS_MODE.enabled = chaosToggle.checked;
+  });
   backgroundSelect.addEventListener('change', () => {
     backgroundThemeKey = backgroundSelect.value in BACKGROUND_THEMES ? backgroundSelect.value : backgroundThemeKey;
+    if (customBackground) {
+      customBackground = null;
+    }
+  });
+
+  backgroundFile.addEventListener('change', (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (!file) {
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    loadImage(url, (img) => {
+      customBackground = img;
+      URL.revokeObjectURL(url);
+      backgroundFile.value = '';
+    });
   });
 
   settingsPanel.addEventListener('close', () => {
@@ -236,9 +263,12 @@ function draw() {
 
 function drawArena() {
   const theme = BACKGROUND_THEMES[backgroundThemeKey] || BACKGROUND_THEMES.canopy;
-  background(theme.base[0], theme.base[1], theme.base[2]);
-
-  drawGradient(theme);
+  if (customBackground) {
+    image(customBackground, 0, 0, width, height);
+  } else {
+    background(theme.base[0], theme.base[1], theme.base[2]);
+    drawGradient(theme);
+  }
   updateObstacles();
   drawObstacles();
   drawCompass();
@@ -415,7 +445,7 @@ class Boid {
   }
 
   flock() {
-    const { neighbors, predatorsNearby, collisionPush } = this.getNeighbors();
+    const { neighbors, predatorsNearby, chaosThreats, collisionPush } = this.getNeighbors();
     this.updateConfusion(neighbors.length);
     const alignment = this.align(neighbors).mult(BOID_SETTINGS.weights.alignment);
     const cohesion = this.type === BOID_TYPES.regular
@@ -441,6 +471,10 @@ class Boid {
     if (this.type !== BOID_TYPES.predator) {
       const avoid = this.avoidPredators(predatorsNearby).mult(BOID_SETTINGS.weights.predatorAvoid);
       this.applyForce(avoid);
+      if (CHAOS_MODE.enabled && chaosThreats.length) {
+        const avoidChaos = this.avoidPredators(chaosThreats).mult(BOID_SETTINGS.weights.predatorAvoid);
+        this.applyForce(avoidChaos);
+      }
     }
 
     if (this.type === BOID_TYPES.predator) {
@@ -492,6 +526,7 @@ class Boid {
   getNeighbors() {
     const neighbors = [];
     const predatorsNearby = [];
+    const chaosThreats = [];
     const collisionPush = createVector(0, 0);
     const perceptionSq = BOID_SETTINGS.perception * BOID_SETTINGS.perception;
     const minDist = 16;
@@ -527,13 +562,17 @@ class Boid {
               if (other.type !== BOID_TYPES.predator) continue;
               neighbors.push(other);
             } else if (other.type !== BOID_TYPES.predator) {
-              neighbors.push(other);
+              if (CHAOS_MODE.enabled && other.type === BOID_TYPES.regular && other.colorIndex !== this.colorIndex) {
+                chaosThreats.push(other);
+              } else {
+                neighbors.push(other);
+              }
             }
           }
         }
       }
     }
-    return { neighbors, predatorsNearby, collisionPush };
+    return { neighbors, predatorsNearby, chaosThreats, collisionPush };
   }
 
   updateConfusion(neighborCount) {
@@ -616,6 +655,11 @@ class Boid {
     }
     const sameSteer = this.cohereFromWeighted(sameColor, BOID_SETTINGS.regularSameColorBias)
       .mult(BOID_SETTINGS.weights.regularSameColor);
+    if (CHAOS_MODE.enabled) {
+      const combined = sameSteer.copy();
+      combined.mult(this.getCohesionWeight());
+      return combined;
+    }
     const otherSteer = this.cohereFrom(otherColor).mult(BOID_SETTINGS.weights.regularOtherColor);
     const combined = p5.Vector.add(sameSteer, otherSteer);
     combined.mult(this.getCohesionWeight());
