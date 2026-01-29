@@ -3,7 +3,7 @@
 A desktop version of the BOIDS simulation with adjustable flock, predators, obstacles, and theme controls.
 
 ## What it does
-- Real‑time boids flocking simulation (regular + predator types).
+- Real-time boids flocking simulation (regular + predator types).
 - Drifting obstacles you can scale up/down.
 - Theme picker for background styles.
 - Optional idle cursor assist that can keep the system active when enabled.
@@ -37,11 +37,23 @@ npm start
 ```
 
 ## Controls
-- **Menu (hamburger)**: bottom‑left.
+- **Menu (hamburger)**: bottom-left.
 - **Regular Boids / Predatory Boids**: set counts and save.
 - **Obstacles**: set count (max 10) and save.
 - **Background**: switch themes instantly.
 - **Mouse BOID**: enables idle cursor assist after 3 seconds of inactivity.
+- **Chaos Mode**: toggles color-based flocking behavior.
+
+## Feature details
+### Mouse BOID (idle cursor assist)
+- **What it does**: adds an invisible "mouse boid" that steers like a regular boid and uses `robotjs` to gently move the system cursor along its path.
+- **How it works**: after ~3 seconds of no user input, the app starts moving the cursor about every 70ms to keep the system active.
+- **How to disable**: move the mouse, click anywhere, or press any key to immediately stop it; clicking also pauses the assist briefly (~1.2s) and resets the idle timer. You can also uncheck **Mouse BOID** in the menu.
+
+### Chaos Mode
+- **What it does**: breaks up mixed-color cohesion. Regular boids only cohere with same-color boids and actively avoid other colors.
+- **How it works**: color groups tighten into their own clusters while treating other colors like threats, which makes movement more turbulent. Predators behave normally.
+- **How to disable**: uncheck **Chaos Mode** in the menu.
 
 ## Notes
 - If you update code, restart the app to see changes.
